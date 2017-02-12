@@ -5,18 +5,18 @@ TaskQueue::TaskQueue(int _size) {
 }
 
 void TaskQueue::insertTask(Task* _task) {
-  std::lock(mutex1);
-  std::lock_guard<std::mutex> locker(mutex1, std::adopt_lock);
-  data.push_back(_task);
+  std::unique_lock<std::mutex> locker(mutex1);
+  data.emplace_back(_task);
+  locker.unlock();
+  cond.notify_one();
 }
 
 Task* TaskQueue::extractTask() {
-  Task* result;
-  {
-    result = data.back();
-    std::lock(mutex1);
-    std::lock_guard<std::mutex> locker(mutex1, std::adopt_lock); // RAII means unlock once out of scope
-    data.pop_back();
+  std::unique_lock<std::mutex> locker(mutex1); // Locks the mutex.
+  while (data.empty()) {
+    cond.wait(locker);
   }
+  Task* result = data.back();
+  data.pop_back();
   return result;
 }
